@@ -1,59 +1,65 @@
 import os
 import base64
-import io
-from flask import Flask, request, jsonify
 import pdfplumber
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import cohere
 
 app = Flask(__name__)
+CORS(app)
 
-# Get API key from environment variable
-COHERE_API_KEY = os.environ.get("COHERE_API_KEY")
-if not COHERE_API_KEY:
-    raise ValueError("Set the COHERE_API_KEY environment variable!")
+co = cohere.Client(os.environ.get("COHERE_API_KEY"))
 
-co = cohere.Client(COHERE_API_KEY)
-
-@app.route("/", methods=["POST"])
+@app.route("/summarize", methods=["POST"])
 def summarize_pdf():
     try:
-        data = request.get_json()
-        if not data or "pdf_base64" not in data:
-            return jsonify({"error": "Missing 'pdf_base64' in request"}), 400
+        data = request.json
+        pdf_base64 = data.get("pdf_base64")
+        if not pdf_base64:
+            return jsonify({"error": "No PDF provided"}), 400
 
-        pdf_bytes = base64.b64decode(data["pdf_base64"])
-        pdf_file = io.BytesIO(pdf_bytes)
+        pdf_bytes = base64.b64decode(pdf_base64)
+        
+        # Save temporarily
+        with open("temp.pdf", "wb") as f:
+            f.write(pdf_bytes)
 
-        # Extract text and tables
-        extracted_text = ""
-        with pdfplumber.open(pdf_file) as pdf:
+        pdf_data = []
+        with pdfplumber.open("temp.pdf") as pdf:
             for i, page in enumerate(pdf.pages, start=1):
-                extracted_text += f"\n--- Page {i} ---\n"
-                text = page.extract_text()
-                if text:
-                    extracted_text += text + "\n"
-                tables = page.extract_tables()
-                if tables:
-                    for t_index, table in enumerate(tables, start=1):
-                        extracted_text += f"\nTable {t_index}:\n"
-                        for row in table:
-                            extracted_text += ", ".join([str(cell) for cell in row]) + "\n"
+                page_data = {
+                    "page_number": i,
+                    "text": page.extract_text(),
+                    "tables": page.extract_tables(),
+                    "images": page.images
+                }
+                pdf_data.append(page_data)
 
-        if not extracted_text.strip():
-            return jsonify({"error": "No text found in PDF"}), 400
+        # Convert to string for cohere
+        content = ""
+        for page in pdf_data:
+            content += f"\n--- Page {page['page_number']} ---\n"
+            if page["text"]:
+                content += f"\nText:\n{page['text']}\n"
+            if page["tables"]:
+                for t_index, table in enumerate(page["tables"], start=1):
+                    content += f"\nTable {t_index}:\n"
+                    for row in table:
+                        content += ", ".join(str(cell) for cell in row) + "\n"
+            if page["images"]:
+                content += f"\nImages ({len(page['images'])} found)\n"
 
-        # Call Cohere for summarization
+        # Generate summary
         response = co.chat(
             model="command-a-03-2025",
-            messages=[{"role": "user", "content": "Summarize in simple terms:\n" + extracted_text}]
+            messages=[{"role": "user", "content": "Summarize and explain simply:\n" + content}]
         )
 
-        summary = response.choices[0].message["content"]
+        summary = response.output_text if hasattr(response, 'output_text') else response.text
         return jsonify({"summary": summary})
 
     except Exception as e:
-        # Return the error to frontend
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))

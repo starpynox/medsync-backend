@@ -1,5 +1,6 @@
 Flask==2.3.3
 flask-cors==3.0.10
+cohere==4.8.0
 pdfplumber==0.10.1
-cohere==4.8.0  # or the latest version available
+requests==2.32.5
 gunicorn==20.1.0
