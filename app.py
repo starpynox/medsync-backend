@@ -54,7 +54,7 @@ async def summarize(file: UploadFile = File(...)):
     # Send to Cohere for summarization
     response = co.chat(
         model="command-a-03-2025",
-        message="Summarize and explain in simple terms: " + output,
+        message="Summarize and explain in simple terms and in points, give final recommendation without any asteriks: " + output,
     )
 
     return {"summary": response.text}
