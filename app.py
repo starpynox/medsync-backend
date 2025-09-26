@@ -13,10 +13,10 @@ co = cohere.Client(COHERE_API_KEY)
 
 app = FastAPI()
 
-# Allow frontend requests (CORS)
+# Allow all origins for testing (you can restrict later)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ⚠️ Replace "*" with your frontend domain in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,15 +51,10 @@ async def summarize(file: UploadFile = File(...)):
             if page.images:
                 output += f"\nImages ({len(page.images)} found)\n"
 
-    os.remove(temp_path)
-
     # Send to Cohere for summarization
     response = co.chat(
         model="command-a-03-2025",
-        messages=[
-            {"role": "user", "content": "Summarize and explain in simple terms: " + output}
-        ]
+        message="Summarize and explain in simple terms: " + output,
     )
 
-    summary_text = response['choices'][0]['message']['content']
-    return {"summary": summary_text}
+    return {"summary": response.text}

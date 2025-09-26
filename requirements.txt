@@ -3,8 +3,8 @@ uvicorn==0.37.0
 pdfplumber==0.11.7
 cohere==5.18.0
 python-multipart==0.0.20
-gunicorn==20.1.0
-pdfminer.six==20250506
 pypdfium2==4.30.0
-requests==2.32.5
+pdfminer.six==20250506
 Pillow==11.3.0
+requests==2.32.5
+gunicorn==20.1.0
